@@ -1,0 +1,38 @@
+{
+  "cooking": [
+    "Simmer the tomato sauce for twenty minutes until it thickens.",
+    "Whisk the eggs with a pinch of salt before scrambling them.",
+    "Let the bread dough rise in a warm spot for an hour.",
+    "Sear the steak on high heat for two minutes per side.",
+    "Fold the beaten egg whites gently into the cake batter.",
+    "Season the roasted vegetables with olive oil and rosemary.",
+    "Deglaze the pan with white wine after browning the chicken.",
+    "Chop the onions finely before sauteing them in butter.",
+    "Marinate the tofu in soy sauce and ginger overnight.",
+    "Blend the soup until smooth, then adjust the seasoning."
+  ],
+  "football": [
+    "The striker curled the ball into the top corner from twenty yards.",
+    "The defender slid in with a perfectly timed tackle.",
+    "The goalkeeper punched the corner kick clear of the box.",
+    "The midfielder threaded a through ball to split the defense.",
+    "The referee blew the whistle for a foul in the penalty area.",
+    "The winger cut inside and fired a shot off the crossbar.",
+    "The manager made three substitutions in the second half.",
+    "The team held a high defensive line to trap the offside.",
+    "The captain scored a header from a corner kick.",
+    "The coach called for a counter-attack after winning possession."
+  ],
+  "programming": [
+    "The function throws an exception when the input list is empty.",
+    "She refactored the module to remove duplicated logic.",
+    "The compiler flagged a type mismatch on line forty-two.",
+    "He wrote a unit test to cover the edge case.",
+    "The recursive call needs a base condition to terminate.",
+    "The API returns a 404 status code for missing resources.",
+    "They optimized the query by adding a database index.",
+    "The variable was declared but never used in the loop.",
+    "The build pipeline failed because of a missing dependency.",
+    "The team migrated the service to a new message queue."
+  ]
+}

@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment files (keep the template)
+.env
+.env.*
+!.env.example
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Code Quality
+.mypy_cache/
+.ruff_cache/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Devbox
+.devbox/
+
+# Claude Code
+.claude/settings.local.json
+PROMPTS.md
+
+# Per-episode generated outputs and caches — not committed.
+# Hand-written input data (e.g. 01–03's data/ files) IS committed; only list
+# files here once the episode's notebook actually writes them.
+04_pdf_docx_extraction/data/*.pdf
+04_pdf_docx_extraction/data/*.docx
+04_pdf_docx_extraction/data/extracted/
+05_ocr_vision_extraction/data/*.png
+06_tables_in_vector_db/data/*.pdf
+06_tables_in_vector_db/data/*.db
+09_first_rag_pipeline/data/kb_generated/
+09_first_rag_pipeline/data/chroma_db/
+13_multimodal_clip/data/images/
+13_multimodal_clip/data/gallery.html
+13_multimodal_clip/data/captions_cache.json
+21_capstone_production_rag/data/corpus_generated/
+23_scaling_ingestion/data/docs_v2.json
