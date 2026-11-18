@@ -9,11 +9,16 @@ export PATH := $(HOME)/.local/bin:$(PATH)
 FILE ?=
 TARGET := $(or $(FILE),.)
 
+# Optional timing for `run`: make run TIME=1 FILE=...
+TIME ?=
+TIMER := $(if $(TIME),time,)
+
 help: ## Show targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "  Examples:"
 	@echo "    make run FILE=03_chunking_strategies/chunking_strategies_ollama.py"
+	@echo "    make run TIME=1 FILE=03_chunking_strategies/chunking_strategies_ollama.py"
 	@echo "    make format FILE=03_chunking_strategies/chunking_strategies_ollama.py"
 	@echo "    make lint FILE=02_embeddings_similarity"
 
@@ -37,7 +42,7 @@ list: ## List runnable Python scripts
 
 run: ## Run a script: make run FILE=path/to/script.py
 	@test -f "$(or $(FILE),01_rag_explained/rag_explained.py)" || { echo "No such file: $(FILE) (try: make list)"; exit 1; }
-	uv run python $(or $(FILE),01_rag_explained/rag_explained.py)
+	uv run $(TIMER) python $(or $(FILE),01_rag_explained/rag_explained.py)
 
 test: ## Run pytest (exit 5 = no tests collected, not a failure)
 	uv run pytest || [ $$? -eq 5 ]

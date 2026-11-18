@@ -12,6 +12,9 @@ DATA_PATH = (
 # print(f"Data directory: {DATA_PATH.resolve()}")
 OUTPUT_PATH = "sentence_embeddings_2d.png"
 
+EMBED_MODEL = "bge-m3"
+CHAT_MODEL = "llama3.2"
+
 
 def load_sentences() -> tuple[list[str], list[str]]:
     """Returns (sentences, topics) as two parallel lists of equal length."""
@@ -27,7 +30,7 @@ def load_sentences() -> tuple[list[str], list[str]]:
 
 
 def embed_sentences(sentences: list[str]) -> np.ndarray:
-    embedder = OllamaEmbeddings(model="bge-m3")
+    embedder = OllamaEmbeddings(model=EMBED_MODEL)
     vectors = embedder.embed_documents(sentences)
     return np.array(vectors)
 

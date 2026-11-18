@@ -5,7 +5,10 @@ from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 
 DATA_DIR = (Path(__file__).parent if "__file__" in globals() else Path.cwd()) / "data"
-# print(f"Data directory: {DATA_DIR.resolve()}")
+print(f"Data directory: {DATA_DIR.resolve()}")
+
+EMBED_MODEL = "bge-m3"
+CHAT_MODEL = "llama3.2"
 
 
 # Deliberately about a fictional company - the base LLM can't know this,
@@ -26,14 +29,14 @@ Answer:"""
 
 def ask_naive(question: str) -> str | list[str | dict[Any, Any]]:
     # temperature=0 for reproducible output when we compare naive vs RAG answers
-    llm = ChatOllama(model="llama3.2", temperature=0)
+    llm = ChatOllama(model=CHAT_MODEL, temperature=0, reasoning=False)
     response = llm.invoke(question)
     return response.content
 
 
 def build_store() -> InMemoryVectorStore:
     """Embed every doc in data/ and load it into an in-memory vector store."""
-    embeddings = OllamaEmbeddings(model="bge-m3")
+    embeddings = OllamaEmbeddings(model=EMBED_MODEL)
     store = InMemoryVectorStore(embedding=embeddings)
 
     docs, metadatas = [], []
@@ -65,7 +68,7 @@ def ask_rag(
     prompt = RAG_PROMPT.format(context=context, question=question)
 
     # GENERATE - same naive LLM, but now grounded in the retrieved context
-    llm = ChatOllama(model="llama3.2", temperature=0)
+    llm = ChatOllama(model=CHAT_MODEL, temperature=0, reasoning=False)
     return llm.invoke(prompt).content
 
 
