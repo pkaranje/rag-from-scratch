@@ -8,6 +8,7 @@ document.
 **Contents**
 
 - [01 — RAG Explained: What It Is \& Why LLMs Need It](#01--rag-explained-what-it-is--why-llms-need-it)
+  - [Quick revision](#quick-revision)
   - [What is RAG?](#what-is-rag)
   - [Architecture](#architecture)
   - [Setup](#setup)
@@ -21,6 +22,78 @@ document.
   - [Try this yourself](#try-this-yourself)
   - [Common pitfalls](#common-pitfalls)
   - [The Acme Robotics corpus](#the-acme-robotics-corpus)
+
+## Quick revision
+
+**In one line:** an LLM only knows what was in its training data. RAG finds the relevant
+passages when a question arrives and puts them in the prompt, so the answer comes from
+evidence instead of memory.
+
+**What we learned**
+
+- RAG is three steps: **retrieve** the closest passages, **augment** the prompt with them,
+  **generate** the answer.
+- Without retrieval, the model invented facts about the fictional Acme Robotics (Jane
+  Smith, 2015, 4 hours). With retrieval, it gave the answer in the corpus (Priya Nandan and
+  Tobias Reyes, 14 hours).
+- The answer needed two documents: `acme_overview.md` names the founders and
+  `acme_products.md` gives the battery life.
+
+**Why it matters**
+
+- A model's knowledge is frozen at training time. Private, new or never-seen facts lead to
+  a guess or a refusal.
+- RAG updates knowledge by re-indexing documents. No retraining is needed.
+- The context window is limited, so retrieval sends only the top-k passages, not the whole
+  knowledge base.
+
+**How the code does it**
+
+| Step | Code | What happens |
+| --- | --- | --- |
+| Index (once) | `build_store()` | Reads the 5 Markdown files, keeps each filename as `source` metadata, embeds them in one `add_texts` call into an `InMemoryVectorStore` |
+| Retrieve | `store.similarity_search_with_score(question, k=3)` | Embeds the question and returns the 3 closest documents with scores |
+| Augment | `RAG_PROMPT.format(context=..., question=...)` | Joins the documents with `---` and tells the model to use ONLY that context, or say it doesn't know |
+| Generate | `llm.invoke(prompt)` | Same chat model as the naive call, now grounded in the context |
+
+**Remember**
+
+- The "say you don't know" line in the prompt is what stops the model guessing when
+  retrieval misses.
+- `k` matters. Too few passages starve the model; too many waste tokens and dilute the
+  relevant text.
+- Each whole file is one chunk here. Splitting comes in Episode 03.
+- `temperature=0` doesn't guarantee identical output: the naive answer changed between runs.
+
+**Run it**
+
+- OpenAI: `make run FILE=01_rag_explained/rag_explained.py` (`gpt-5.4-nano`,
+  `text-embedding-3-small`, needs `OPENAI_API_KEY`).
+- Local: `make run FILE=01_rag_explained/rag_explained_ollama.py` (`llama3.2`, `bge-m3`,
+  needs Ollama running).
+
+**Self-check**
+
+<details>
+<summary>1. Why can't the base model answer the Acme question?</summary>
+
+Acme Robotics is fictional, so it was never in the training data. The model either
+invents an answer or refuses.
+</details>
+
+<details>
+<summary>2. Which function does each of the three RAG steps?</summary>
+
+Retrieve: `similarity_search_with_score`. Augment: `RAG_PROMPT.format`. Generate:
+`llm.invoke`. Indexing happens before all three, in `build_store`.
+</details>
+
+<details>
+<summary>3. What happens if you set k=1?</summary>
+
+Only `acme_overview.md` is retrieved. It names the founders but has no battery figure,
+so half the question goes unanswered.
+</details>
 
 ## What is RAG?
 

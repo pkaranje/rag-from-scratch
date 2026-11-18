@@ -9,6 +9,7 @@ were added for this document.
 **Contents**
 
 - [04 — Extracting Text from PDFs & Word Docs](#04--extracting-text-from-pdfs--word-docs)
+  - [Quick revision](#quick-revision)
   - [What you'll learn](#what-youll-learn)
   - [Architecture](#architecture)
   - [Setup](#setup)
@@ -20,6 +21,89 @@ were added for this document.
   - [Try this yourself](#try-this-yourself)
   - [Common pitfalls](#common-pitfalls)
   - [The sample files](#the-sample-files)
+
+## Quick revision
+
+**In one line:** extraction quality caps RAG quality. Text that's garbled on the way in
+can't be fixed by better retrieval later.
+
+**What we learned**
+
+- Three extractors on the same files:
+
+  | Extractor | Reads | Good at | Cost |
+  | --- | --- | --- | --- |
+  | PyMuPDF | The PDF's raw text layer | Clean, single-column digital PDFs | Fastest |
+  | Unstructured | Layout elements (titles, lists, tables) | Element boundaries | Slower, more dependencies |
+  | Docling | The page with a layout model | Tables and headings, exported as Markdown | Slowest, loads a model |
+
+- On text-only PDFs all three return almost the same character count. On the table PDF
+  they split: Unstructured returned the least text (91 characters on the upstream file), and
+  Docling kept the table as Markdown.
+- PyMuPDF puts every table header cell on its own line, so the LLM has to work out which
+  number belongs to which column. Docling keeps each row together.
+
+**Why it matters**
+
+- Tables carry meaning in their rows and columns. Flat text throws that away.
+- Multi-column pages can come out in the wrong reading order.
+- Citations ("source, page 2") only work if the source and page are recorded at extraction
+  time.
+
+**How the code does it**
+
+1. **Generate samples:** `make_clean_digital_pdf`, `make_multi_column_pdf` (title frame plus
+   two column frames, with `FrameBreak` so each paragraph lands in its own column),
+   `make_table_heavy_pdf` (ReportLab `Table` with a "Results" header spanning two columns)
+   and `make_docx`.
+2. **Extract:** `extract_with_pymupdf`, `extract_with_unstructured`, `extract_with_docling`,
+   `extract_docx`.
+3. **Compare:** `diff_extractors` prints each extractor's character count and keeps going
+   if one fails.
+4. **Chunk and save:** `chunk_and_save` splits PyMuPDF's text (500 chars, 50 overlap) and
+   writes `data/extracted/<name>.chunks.json`, each chunk as
+   `{"text": ..., "metadata": {"source": ...}}`.
+5. **Show the effect:** `bad_vs_good_extraction_demo` asks the LLM the same table question
+   from flat text and from Docling's Markdown.
+
+**Remember**
+
+- Similar character counts don't mean similar quality. Read the extracted text.
+- No extractor is best everywhere. For clean single-column PDFs, PyMuPDF alone is often
+  enough.
+- The JSON chunks are a hand-off to a later indexing step: nothing in episodes 01–04 reads
+  them yet. They record `source` but not the page number.
+- A scanned PDF has no text layer and needs OCR, which is Episode 05.
+- The `langchain_community` loaders print a deprecation warning. Calling `pymupdf`,
+  `unstructured.partition.pdf.partition_pdf` and `docx2txt` directly removes it.
+
+**Run it**
+
+- OpenAI: `make run FILE=04_pdf_docx_extraction/pdf_docx_extraction.py`.
+- Local: `make run FILE=04_pdf_docx_extraction/pdf_docx_extraction_ollama.py` (`llama3.2`).
+- Both scripts generate all 4 sample files first, so nothing has to be supplied by hand.
+
+**Self-check**
+
+<details>
+<summary>1. Why can two extractors return the same character count but different quality?</summary>
+
+The count ignores order and structure. Columns read in the wrong order, or table cells
+flattened into one stream, have the same characters but lose meaning.
+</details>
+
+<details>
+<summary>2. When is Docling worth its extra time?</summary>
+
+When documents have tables or complex layouts whose structure the answer depends on.
+</details>
+
+<details>
+<summary>3. What metadata should a chunk carry for citations, and what does this code miss?</summary>
+
+The source file and the page number. This code keeps `source` but loses the page
+because it splits the joined text of all pages.
+</details>
 
 ## What you'll learn
 
@@ -51,7 +135,7 @@ from `Docx2txtLoader` is chunked too, though the diagram draws no edge from it.
 
 | Stage | Component | Settings |
 | --- | --- | --- |
-| Sample data | `reportlab`, `python-docx` | 2 PDFs and 1 DOCX generated; `table_heavy.pdf` must be supplied |
+| Sample data | `reportlab`, `python-docx` | 3 PDFs and 1 DOCX generated |
 | Flat extraction | `PyMuPDFLoader` | One Document per page, joined with blank lines |
 | Layout extraction | `UnstructuredPDFLoader` | `mode="elements"` |
 | Structured extraction | Docling `DocumentConverter` | `export_to_markdown()` |
@@ -93,13 +177,17 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import BaseDocTemplate
-from reportlab.platypus import Frame
-from reportlab.platypus import PageTemplate
-from reportlab.platypus import Paragraph
-from reportlab.platypus import SimpleDocTemplate
-from reportlab.platypus import Table
-from reportlab.platypus import TableStyle
+from reportlab.platypus import (
+    BaseDocTemplate,
+    Flowable,
+    Frame,
+    FrameBreak,
+    PageTemplate,
+    Paragraph,
+    SimpleDocTemplate,
+    Table,
+    TableStyle,
+)
 
 STYLES = getSampleStyleSheet()
 
@@ -108,7 +196,7 @@ def make_clean_digital_pdf():
     # simplest case: single column, no tables — the baseline every extractor should handle
     path = DATA_DIR / "clean_digital.pdf"
     doc = SimpleDocTemplate(str(path), pagesize=letter)
-    body = [
+    body: list[Flowable] = [
         Paragraph("Meridian Analytics — Q3 Platform Update", STYLES["Title"]),
         Paragraph(
             "Meridian Analytics shipped three major platform updates in Q3: a rewritten "
@@ -130,14 +218,24 @@ def make_clean_digital_pdf():
 
 def make_multi_column_pdf():
     path = DATA_DIR / "multi_column.pdf"
+
     doc = BaseDocTemplate(str(path), pagesize=letter)
     margin = 0.75 * inch
+
     # two frames side-by-side (with a 0.3" gutter between them) is what makes this a
     # true multi-column layout rather than one wide text block
     col_width = (letter[0] - 2 * margin - 0.3 * inch) / 2
-    left_frame = Frame(margin, margin, col_width, letter[1] - 2 * margin, id="left")
-    right_frame = Frame(margin + col_width + 0.3 * inch, margin, col_width, letter[1] - 2 * margin, id="right")
-    doc.addPageTemplates([PageTemplate(id="TwoCol", frames=[left_frame, right_frame])])
+    title_height = 0.8 * inch
+    col_height = letter[1] - 2 * margin - title_height
+
+    # full-width title frame on top so both columns start at the same height
+    title_frame = Frame(
+        margin, margin + col_height, letter[0] - 2 * margin, title_height, id="title"
+    )
+    left_frame = Frame(margin, margin, col_width, col_height, id="left")
+    right_frame = Frame(margin + col_width + 0.3 * inch, margin, col_width, col_height, id="right")
+
+    doc.addPageTemplates([PageTemplate(id="TwoCol", frames=[title_frame, left_frame, right_frame])])
 
     left_text = (
         "Left column: Meridian's support team resolved 2,300 tickets in Q3, an increase "
@@ -149,13 +247,58 @@ def make_multi_column_pdf():
         "the Lighthouse anomaly-detection team, and one new hire joined support. No "
         "departures were recorded in the quarter."
     )
-    body = [
+    body: list[Flowable] = [
         Paragraph("Meridian Analytics — Internal Ops Digest", STYLES["Title"]),
+        FrameBreak(),
         Paragraph(left_text, STYLES["BodyText"]),
+        # short text never overflows the left frame, so force the jump to the right column
+        FrameBreak(),
         Paragraph(right_text, STYLES["BodyText"]),
     ]
     # naive PDF text extractors often read column 1 then column 2 out of order,
     # or interleave them line-by-line — that's the failure mode this file demos
+    doc.build(body)
+    print(f"wrote {path}")
+
+
+def make_table_heavy_pdf():
+    # the answer lives in row/column structure: flat extractors lose which number
+    # belongs to which column, and the "Results" header spans two columns
+    path = DATA_DIR / "table_heavy.pdf"
+    doc = SimpleDocTemplate(str(path), pagesize=letter)
+    cell = STYLES["BodyText"]
+    rows = [
+        ["Disability Category", "Participants", "Ballots Completed",
+         "Ballots Incomplete/ Terminated", "Results", ""],
+        ["", "", "", "", "Accuracy", "Time to complete"],
+        ["Blind", "5", "1", "4", "34.5%, n=1", "1199 sec, n=1"],
+        ["Low Vision", "5", "2", "3", "98.3% n=2<br/>(97.7%, n=3)",
+         "1716 sec, n=3<br/>(1934 sec, n=2)"],
+        ["Dexterity", "5", "4", "1", "98.3%, n=4", "1672.1 sec, n=4"],
+        ["Mobility", "3", "3", "0", "95.4%, n=3", "1416 sec, n=3"],
+    ]
+    # explicit widths: Paragraph cells otherwise collapse and wrap letter-by-letter
+    table = Table(
+        [[Paragraph(c, cell) for c in r] for r in rows],
+        colWidths=[1.1 * inch, 0.9 * inch, 0.9 * inch, 1.1 * inch, 1.2 * inch, 1.3 * inch],
+        repeatRows=2,
+    )
+    table.setStyle(
+        TableStyle(
+            [
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                ("BACKGROUND", (0, 0), (-1, 1), colors.lightgrey),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("SPAN", (4, 0), (5, 0)),  # "Results" over Accuracy + Time
+                *[("SPAN", (c, 0), (c, 1)) for c in range(4)],  # first 4 headers span 2 rows
+            ]
+        )
+    )
+    body: list[Flowable] = [
+        Paragraph("Example table", STYLES["Title"]),
+        Paragraph("This is an example of a data table.", STYLES["BodyText"]),
+        table,
+    ]
     doc.build(body)
     print(f"wrote {path}")
 
@@ -177,6 +320,7 @@ def make_docx():
 
 make_clean_digital_pdf()
 make_multi_column_pdf()
+make_table_heavy_pdf()
 make_docx()
 print("\nDone. These 4 files are gitignored — rerun this cell any time.")
 ```
@@ -192,11 +336,20 @@ wrote data/sample.docx
 Done. These 4 files are gitignored — rerun this cell any time.
 ```
 
-**Note:** the saved output doesn't match the code. The output lists `table_heavy.pdf`, but
-the cell has no function that writes it, so a fresh run prints 3 `wrote` lines, not 4. The
-unused imports `colors`, `Table` and `TableStyle` suggest a table generator was removed and the
-output was never re-run. Before running the later cells, copy a PDF with a table into
-`data/table_heavy.pdf` (see [The sample files](#the-sample-files)).
+**Note:** this cell differs from upstream in two places, both fixed in this repo:
+
+- **Two real columns.** Upstream's two paragraphs are too short to fill the left frame, so
+  both landed in the left column and the right frame stayed empty. A full-width title frame
+  plus a `FrameBreak` after the title and after the left paragraph now puts each paragraph
+  in its own column, starting at the same height.
+- **`table_heavy.pdf` is generated.** Upstream's saved output lists it, but the cell had no
+  function to write it. `make_table_heavy_pdf` rebuilds the same ballot-results table with
+  ReportLab, so the later cells work on a fresh clone. It sets explicit column widths
+  because `Paragraph` cells otherwise wrap one letter per line.
+
+The extraction counts below are upstream's run on its own `table_heavy.pdf`. On the
+generated file, the counts are PyMuPDF 355, Unstructured 287 and Docling 996, and the demo
+answers are the same.
 
 ## `extractors` — three different ways to pull text out of the same PDF
 
@@ -469,17 +622,17 @@ Docling keeps the header as one Markdown row. `main.py` isn't in the upstream
 
 ## The sample files
 
-**Note:** all four inputs are gitignored under `04_pdf_docx_extraction/data/`. Three come from
-the Generate sample data cell and describe the fictional company Meridian Analytics, so the
-base LLM can't answer from prior knowledge. Upstream doesn't ship `table_heavy.pdf`.
+**Note:** all four inputs are gitignored under `04_pdf_docx_extraction/data/` and come from
+the Generate sample data cell. Three describe the fictional company Meridian Analytics, so
+the base LLM can't answer from prior knowledge. The fourth, `table_heavy.pdf`, rebuilds the
+example ballot-results table the upstream demo used, since upstream doesn't ship it.
 
 | File | Source | Content | Tests |
 | --- | --- | --- | --- |
 | `clean_digital.pdf` | `make_clean_digital_pdf` | Title and 2 paragraphs: Q3 platform update | The baseline every extractor should get right |
 | `multi_column.pdf` | `make_multi_column_pdf` | Title and 2 columns: support tickets, headcount | Reading order across columns |
-| `table_heavy.pdf` | Not generated; supply your own | Per the demo output: an "Example table" of ballot results by disability category | Table structure; the demo asks about the Low Vision row |
+| `table_heavy.pdf` | `make_table_heavy_pdf` | "Example table" of ballot results for 4 disability categories, with a "Results" header spanning Accuracy and Time to complete | Table structure; the demo asks about the Low Vision row |
 | `sample.docx` | `make_docx` | Hiring plan heading, a paragraph, a 3-item bulleted list | DOCX extraction |
 
-To reproduce the demo question, `table_heavy.pdf` needs a table with a Low Vision row that has
-ballots completed, accuracy and time to complete. Any PDF with a table works if you also
-change `question` in `bad_vs_good_extraction_demo`.
+To test a different table, replace `data/table_heavy.pdf` with any PDF that has one and
+change `question` in `bad_vs_good_extraction_demo` to match.

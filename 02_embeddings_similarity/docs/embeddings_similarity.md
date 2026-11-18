@@ -7,6 +7,7 @@ added for this document.
 
 **Contents**
 
+- [Quick revision](#quick-revision)
 - [What you'll learn](#what-youll-learn)
 - [Architecture](#architecture)
 - [Setup](#setup)
@@ -18,6 +19,77 @@ added for this document.
 - [Try this yourself](#try-this-yourself)
 - [Common pitfalls](#common-pitfalls)
 - [The sentence set](#the-sentence-set)
+
+## Quick revision
+
+**In one line:** an embedding is a list of numbers whose position encodes meaning, and
+similarity search is comparing those lists.
+
+**What we learned**
+
+- 30 sentences in 3 topics became 30 vectors of 1,536 numbers each with
+  `text-embedding-3-small`.
+- Every sentence's 3 nearest neighbours came from its own topic, with no topic label given
+  to the model.
+- Same-topic pairs average 0.299 cosine similarity; different-topic pairs average 0.087.
+- UMAP squeezed the vectors into 2D, and the 3 topics show up as 3 clusters.
+
+**Why it matters**
+
+- This is the math behind retrieval in Episode 01. Every vector store (`InMemoryVectorStore`,
+  Chroma, Qdrant) runs it behind `similarity_search`.
+- Knowing what the scores mean stops you setting thresholds that silently drop good matches.
+
+**How the code does it**
+
+| Function | What it does |
+| --- | --- |
+| `load_sentences()` | Flattens `sentences.json` into parallel `sentences` and `topics` lists |
+| `embed_sentences()` | Calls the embedding model and returns a NumPy array, one row per sentence |
+| `cosine_similarity_matrix()` | Scales every row to length 1, then takes dot products |
+| `dot_product_matrix()` | Plain dot products, sensitive to vector length |
+| `euclidean_distance_matrix()` | Straight-line distance, computed with the `‖a‖² + ‖b‖² − 2a·b` expansion |
+| `project_to_2d()` | UMAP down to 2 dimensions for the scatter plot |
+
+**Remember**
+
+- OpenAI returns unit-length vectors. Then cosine equals dot product and Euclidean equals
+  `sqrt(2 − 2·cos)`, so all three metrics give the same ranking.
+- Compare scores within one query, not across queries. The best football match scored
+  0.535 and the best programming match only 0.289, and both were correct. A fixed cutoff
+  like 0.4 would drop every programming neighbour.
+- 2D plots keep local neighbourhoods but distort global distances. Don't measure gaps
+  between clusters.
+- Embeddings are the same for the same text and model, so cache them instead of paying twice.
+
+**Run it**
+
+- OpenAI: `make run FILE=02_embeddings_similarity/embeddings_similarity.py`.
+- Local: `make run FILE=02_embeddings_similarity/embeddings_similarity_ollama.py` (`bge-m3`,
+  which has a different vector size).
+
+**Self-check**
+
+<details>
+<summary>1. Why does normalising the rows turn a dot product into cosine similarity?</summary>
+
+Cosine is the dot product divided by both lengths. When every length is 1, the division
+does nothing.
+</details>
+
+<details>
+<summary>2. When would dot product and cosine rank neighbours differently?</summary>
+
+When vectors have different lengths. Dot product favours longer vectors; cosine ignores
+length. Multiply one row by 10 to see it.
+</details>
+
+<details>
+<summary>3. Why is "keep anything above 0.4" a bad retrieval rule?</summary>
+
+Score ranges differ by topic and model. A correct match can score 0.29 in one topic while
+another topic's matches score 0.5.
+</details>
 
 ## What you'll learn
 

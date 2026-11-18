@@ -8,6 +8,7 @@ were added for this document.
 **Contents**
 
 - [03 — Chunking Strategies: The Most Underrated RAG Decision](#03--chunking-strategies-the-most-underrated-rag-decision)
+  - [Quick revision](#quick-revision)
   - [What you'll learn](#what-youll-learn)
   - [Architecture](#architecture)
   - [Setup](#setup)
@@ -19,6 +20,82 @@ were added for this document.
   - [Try this yourself](#try-this-yourself)
   - [Common pitfalls](#common-pitfalls)
   - [The Junebug handbook](#the-junebug-handbook)
+
+## Quick revision
+
+**In one line:** how you split text before embedding decides what retrieval can find,
+and it's set before any query runs.
+
+**What we learned**
+
+- The same 7,797-character handbook, split 4 ways:
+
+  | Strategy | Chunks | Sizes |
+  | --- | --- | --- |
+  | `fixed_size` (500, no overlap) | 16 | 296–500 chars |
+  | `recursive` (500, 50 overlap) | 23 | 134–490 chars |
+  | `markdown_header` | 18 | 212–766 chars |
+  | `semantic` | not printed | follows topic shifts |
+
+- All 4 answered both test questions, so the differences were in **what was retrieved**:
+  `fixed_size` cut mid-word ("e maintenance"), and `semantic` returned the same two large
+  chunks for both questions.
+- `ParentDocumentRetriever` matched a 138-character child chunk and handed the LLM its
+  1,152-character parent.
+
+**Why it matters**
+
+- Too small: a chunk loses the context around a fact.
+- Too large: the fact is diluted, the embedding gets vaguer, and every query sends more
+  tokens.
+- Ignoring structure cuts tables, numbered steps and Q&A pairs in half.
+
+**How to choose**
+
+| Situation | Start with |
+| --- | --- |
+| No idea yet | `RecursiveCharacterTextSplitter`, 500 chars, 50 overlap |
+| Document has clear headings | `MarkdownHeaderTextSplitter`, so no chunk crosses a section |
+| Retrieval quality matters more than ingestion cost | `SemanticChunker` (one embedding call per sentence) |
+| Search wants small chunks, the LLM wants context | `ParentDocumentRetriever`: search children, return parents |
+
+**Remember**
+
+- Overlap lowers the chance of cutting a fact in half. It doesn't fix a splitter that
+  ignores structure.
+- `build_store` passes only `page_content`, so the chapter and section metadata from
+  `markdown_header_chunks` never reaches retrieval.
+- Parents are cut by size, not by section, so the returned parent also carried unrelated
+  firmware text.
+- `SemanticChunker` comes from `langchain-experimental`, which is no longer maintained.
+
+**Run it**
+
+- OpenAI: `make run FILE=03_chunking_strategies/chunking_strategies.py`.
+- Local: `make run FILE=03_chunking_strategies/chunking_strategies_ollama.py` (`llama3.2`,
+  `bge-m3`).
+
+**Self-check**
+
+<details>
+<summary>1. All 4 strategies gave the right answer. How do you still tell them apart?</summary>
+
+Look at the retrieved chunks: where they start, whether they cut words or sections, and
+how much text each sends to the LLM.
+</details>
+
+<details>
+<summary>2. What problem does the parent-document pattern solve?</summary>
+
+Small chunks embed precisely but carry little context; large chunks are the reverse. It
+searches small child chunks and returns their large parent.
+</details>
+
+<details>
+<summary>3. Why is semantic chunking the most expensive strategy?</summary>
+
+It embeds every sentence to find where the topic changes, before any chunk is indexed.
+</details>
 
 ## What you'll learn
 
