@@ -11,6 +11,7 @@ Each lesson comes in two versions: one using OpenAI, and one running fully local
 | 02 | [Embeddings & similarity](02_embeddings_similarity/) | Turning text into vectors and measuring how close they are | [docs](02_embeddings_similarity/docs/embeddings_similarity.md) |
 | 03 | [Chunking strategies](03_chunking_strategies/) | Splitting documents so retrieval finds the right context | [docs](03_chunking_strategies/docs/chunking_strategies.md) |
 | 04 | [PDF & DOCX extraction](04_pdf_docx_extraction/) | Pulling text out of PDFs and Word files with PyMuPDF, Unstructured and Docling, and why tables need structure | [docs](04_pdf_docx_extraction/docs/pdf_docx_extraction.md) |
+| 05 | [OCR & vision extraction](05_ocr_vision_extraction/) | Reading text from screenshots, scans, receipts and whiteboards with Tesseract OCR vs a vision LLM | [docs](05_ocr_vision_extraction/docs/ocr_vision_extraction.md) |
 
 Each doc opens with a **Quick revision** section: what the lesson teaches, why it matters,
 how the code does it, the gotchas, and self-check questions. Read that first when revising.
@@ -21,7 +22,7 @@ Each lesson folder has the same layout:
 NN_topic/
 ├── topic.ipynb / topic.py                # OpenAI version
 ├── topic_ollama.ipynb / topic_ollama.py  # local Ollama version
-├── data/                                 # sample input the code reads (lesson 04 generates its own)
+├── data/                                 # sample input the code reads (lessons 04-05 generate their own)
 └── docs/topic.md                         # written walkthrough with diagrams and notes
 ```
 
@@ -50,6 +51,13 @@ NN_topic/
 
   Docling downloads its layout model the first time it runs, so the first run is slower.
   Lesson 04's Ollama version uses only the chat model.
+
+- **For lesson 05:** the Tesseract OCR engine, and for the Ollama version a vision model:
+
+  ```bash
+  brew install tesseract
+  ollama pull gemma3:4b   # vision
+  ```
 
 ## Run
 
