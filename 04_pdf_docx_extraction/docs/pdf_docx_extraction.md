@@ -8,7 +8,7 @@ were added for this document.
 
 **Contents**
 
-- [04 — Extracting Text from PDFs & Word Docs](#04--extracting-text-from-pdfs--word-docs)
+- [04 — Extracting Text from PDFs \& Word Docs](#04--extracting-text-from-pdfs--word-docs)
   - [Quick revision](#quick-revision)
   - [What you'll learn](#what-youll-learn)
   - [Architecture](#architecture)
@@ -162,7 +162,7 @@ OUT_DIR = DATA_DIR / "extracted"
 **Note:** `DATA_DIR` is relative, so run the code from `04_pdf_docx_extraction/`. The
 project's `pyproject.toml` already has every package; run `uv sync`. Unstructured's PDF path
 also needs poppler (`brew install poppler`). The local `pdf_docx_extraction_ollama.ipynb`
-swaps the LLM for `ChatOllama(model="llama3.2", temperature=0, reasoning=False)`, so it needs
+swaps the LLM for `ChatOllama(model="llama3.2", temperature=0)`, so it needs
 `ollama pull llama3.2` instead of an OpenAI key.
 
 ## Generate sample data
