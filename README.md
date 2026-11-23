@@ -40,9 +40,9 @@ NN_topic/
 
   ```bash
   ollama pull llama3.2   # chat
-  ollama pull gemma3:4b  # chat
+  ollama pull gemma3:4b  # vision (lesson 05)
   ollama pull bge-m3     # embeddings
-  ollama pull embeddinggemma-2  # embeddings
+  ollama pull embeddinggemma  # embeddings (lesson 06)
   ```
 
 - **For lesson 04:** poppler, which Unstructured uses to read PDFs:
